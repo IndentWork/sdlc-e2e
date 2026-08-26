@@ -1,0 +1,61 @@
+name: E2E Tests
+
+# Manually triggered — select environment before running.
+# Runs against a deployed environment (dev or prod) via public FQDN + az CLI.
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment to test"
+        required: true
+        type: choice
+        options:
+          - DEV
+          - PROD
+
+jobs:
+  e2e:
+    name: "E2E ${{ inputs.env }}"
+    runs-on: ubuntu-latest
+
+    # SP credentials looked up dynamically from org-level secrets using uppercase ENV.
+    env:
+      ARM_CLIENT_ID:       ${{ secrets[format('SDLC_{0}_AZURE_CLIENT_ID_TERRAFORM', inputs.env)] }}
+      ARM_CLIENT_SECRET:   ${{ secrets[format('SDLC_{0}_AZURE_CLIENT_SECRET_TERRAFORM', inputs.env)] }}
+      ARM_TENANT_ID:       ${{ secrets[format('SDLC_{0}_AZURE_TENANT_ID_TERRAFORM', inputs.env)] }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets[format('SDLC_{0}_AZURE_SUBSCRIPTION_ID_TERRAFORM', inputs.env)] }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set lowercase env
+        run: echo "ENV_LOWER=$(echo '${{ inputs.env }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            --username "$ARM_CLIENT_ID" \
+            --password "$ARM_CLIENT_SECRET" \
+            --tenant "$ARM_TENANT_ID"
+          az account set --subscription "$ARM_SUBSCRIPTION_ID"
+
+      # Fetch the public FQDN of the Container App to hit the deployed API
+      - name: Get deployed API URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name "ca-sdlc-base-${{ env.ENV_LOWER }}" \
+            --resource-group "rg-sdlc-base-${{ env.ENV_LOWER }}" \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "BASE_URL=https://$FQDN" >> $GITHUB_ENV
+          echo "ENV=${{ env.ENV_LOWER }}" >> $GITHUB_ENV
+          echo "Testing against: https://$FQDN"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run e2e tests
+        run: uv run pytest tests/ -v --tb=short

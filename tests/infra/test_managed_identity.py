@@ -24,12 +24,16 @@ def test_managed_identity_has_acr_pull_role(resource_group: str, env: str):
 
 def test_managed_identity_is_postgres_ad_admin(resource_group: str, env: str):
     """Managed Identity must be the PostgreSQL Azure AD administrator."""
-    admins = az(
-        "postgres", "flexible-server", "ad-admin", "list",
-        "--server-name", f"psql-sdlc-base-{env}",
-        "--resource-group", resource_group,
+    # Use ARM REST API — ad-admin subcommand requires an extension not installed by default
+    subscription = az("account", "show")["id"]
+    url = (
+        f"/subscriptions/{subscription}"
+        f"/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-sdlc-base-{env}"
+        f"/administrators?api-version=2023-03-01-preview"
     )
-    identity = az("identity", "show", "--name", f"id-sdlc-base-{env}", "--resource-group", resource_group)
+    result = az("rest", "--method", "get", "--url", url)
+    admin_object_ids = [a["properties"]["objectId"] for a in result.get("value", [])]
 
-    admin_object_ids = [a["objectId"] for a in admins]
+    identity = az("identity", "show", "--name", f"id-sdlc-base-{env}", "--resource-group", resource_group)
     assert identity["principalId"] in admin_object_ids

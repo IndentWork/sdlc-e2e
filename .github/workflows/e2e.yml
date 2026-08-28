@@ -51,6 +51,23 @@ jobs:
           echo "ENV=${{ env.ENV_LOWER }}" >> $GITHUB_ENV
           echo "Testing against: https://$FQDN"
 
+      # Warm up the Container App before tests — scale-to-zero means the first request
+      # after idle waits ~30-60s for a new container to boot. Warming up here lets
+      # pytest run against a hot instance instead of timing out on the first test.
+      - name: Warm up Container App
+        run: |
+          echo "Warming up $BASE_URL/health..."
+          for i in $(seq 1 36); do  # up to 3 minutes (36 × 5s)
+            if curl -sf --max-time 15 "$BASE_URL/health" > /dev/null; then
+              echo "API is ready (took ~$((i * 5))s)"
+              exit 0
+            fi
+            echo "  attempt $i — not ready yet, retrying in 5s..."
+            sleep 5
+          done
+          echo "ERROR: API did not become ready within 3 minutes"
+          exit 1
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v3
 

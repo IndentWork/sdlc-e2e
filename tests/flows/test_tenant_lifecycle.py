@@ -27,6 +27,7 @@ def test_full_tenant_lifecycle(client: httpx.Client):
     tenant_id = body["id"]
     assert body["github_org"] == org
     assert body["tier"] == "dedicated"
+    assert len(body["resource_code"]) == 8
 
     # 2. Get by id
     get_response = client.get(f"/tenants/{tenant_id}")

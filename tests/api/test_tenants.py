@@ -20,7 +20,9 @@ def test_create_tenant_returns_id_name_github_org_and_tier(client: httpx.Client,
     assert body["github_org"] == org
     assert body["tier"] == "shared"
     assert "id" in body
-    assert "tenant_key" not in body   # no secret is ever returned
+    assert "resource_code" in body
+    assert len(body["resource_code"]) == 8   # always exactly 8 hex chars
+    assert "tenant_key" not in body          # no secret is ever returned
 
     created_tenant_ids.append(body["id"])
 

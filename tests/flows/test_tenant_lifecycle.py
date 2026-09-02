@@ -21,17 +21,19 @@ def test_full_tenant_lifecycle(client: httpx.Client):
     org  = _org()
 
     # 1. Create
-    create_response = client.post("/tenants", json={"name": name, "github_org": org})
+    create_response = client.post("/tenants", json={"name": name, "github_org": org, "tier": "dedicated"})
     assert create_response.status_code == 201
     body = create_response.json()
     tenant_id = body["id"]
     assert body["github_org"] == org
+    assert body["tier"] == "dedicated"
 
     # 2. Get by id
     get_response = client.get(f"/tenants/{tenant_id}")
     assert get_response.status_code == 200
     assert get_response.json()["name"] == name
     assert get_response.json()["github_org"] == org
+    assert get_response.json()["tier"] == "dedicated"
 
     # 3. Delete
     delete_response = client.delete(f"/tenants/{tenant_id}")

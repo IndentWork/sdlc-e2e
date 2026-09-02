@@ -38,10 +38,10 @@ def test_index_rejects_malformed_jwt(client: httpx.Client):
 
 
 def test_index_rejects_missing_body_fields(client: httpx.Client):
-    """POST /index without required body fields returns 422 regardless of auth."""
+    """POST /index with an invalid token returns 401 — auth runs before body validation."""
     response = client.post(
         "/index",
         json={},
         headers={"Authorization": "Bearer fake-token"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 401
